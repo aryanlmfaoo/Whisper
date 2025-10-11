@@ -13,7 +13,7 @@ if (!JWT_SECRET) {
 }
 
 router.post("/", async (req, res) => {
-  const { username, password, bio, name } = req.body;
+  const { username, password, bio, name, email } = req.body;
 
   if (!username || !password || !bio || !name) {
     console.log("Invalid Input.");
@@ -21,14 +21,29 @@ router.post("/", async (req, res) => {
   }
 
   try {
+
+    const userExists = await prisma.user.count({
+      where: {
+        OR: [{ username, email }]
+      }
+    })
+
+    if (userExists > 0) {
+      return res.status(400).json({ success: false, message: "User already exists." })
+    }
+
+
     const salt = await genSalt(10);
     const hashedPass = await hash(password, salt);
 
     const user = await prisma.user.create({
-      username,
-      bio,
-      name,
-      password: hashedPass,
+      data: {
+        username,
+        bio,
+        name,
+        email,
+        password: hashedPass,
+      }
     });
 
     const token = jwt.sign({ user: user.id, username }, JWT_SECRET, {
