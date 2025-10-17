@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../../prisma";
 import { genSalt, hash } from "bcrypt";
 import jwt from "jsonwebtoken";
+import isEmail from "../../helpers/isEmail";
 
 const router = Router();
 
@@ -15,35 +16,47 @@ if (!JWT_SECRET) {
 router.post("/", async (req, res) => {
   const { username, password, bio, name, email } = req.body;
 
-  if (!username || !password || !bio || !name) {
+  if (
+    !username ||
+    !password ||
+    !bio ||
+    !name ||
+    !email ||
+    typeof email !== "string" ||
+    typeof username !== "string"
+  ) {
     console.log("Invalid Input.");
     return res.status(400).json({ success: false, message: "Invalid Input." });
   }
 
-  try {
+  if (!isEmail(email)) {
+    return res.status(400).json({ success: false, message: "Invalid Email." });
+  }
 
+  try {
     const userExists = await prisma.user.count({
       where: {
-        OR: [{ username, email }]
-      }
-    })
+        OR: [{ username, email }],
+      },
+    });
 
     if (userExists > 0) {
-      return res.status(400).json({ success: false, message: "User already exists." })
+      return res
+        .status(400)
+        .json({ success: false, message: "User already exists." });
     }
-
 
     const salt = await genSalt(10);
     const hashedPass = await hash(password, salt);
 
     const user = await prisma.user.create({
       data: {
-        username,
+        username: username.toLowerCase(),
         bio,
         name,
-        email,
+        email: email.toLowerCase(),
         password: hashedPass,
-      }
+      },
     });
 
     const token = jwt.sign({ user: user.id, username }, JWT_SECRET, {
