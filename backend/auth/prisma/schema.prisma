@@ -1,4 +1,4 @@
-ā// This is your Prisma schema file,
+// This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
@@ -27,6 +27,7 @@ model User {
 }
 
 model ForgotPassword {
-  userId    String   @id @unique
-  createdAt DateTime @default(now())
+  userId    String @id @unique
+  userToken String
+  createdAt BigInt
 }

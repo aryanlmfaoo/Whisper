@@ -36,7 +36,7 @@ router.post("/", async (req, res) => {
   try {
     const userExists = await prisma.user.count({
       where: {
-        OR: [{ username, email }],
+        OR: [{ username: username.toLowerCase(), email: email.toLowerCase() }],
       },
     });
 

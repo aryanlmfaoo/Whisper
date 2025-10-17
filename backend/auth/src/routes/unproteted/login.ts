@@ -23,10 +23,12 @@ router.post("/", async (req, res) => {
 
   try {
     if (isEmail(emailOrUsername)) {
-      user = await prisma.user.findFirst({ where: { email: emailOrUsername } });
+      user = await prisma.user.findFirst({
+        where: { email: emailOrUsername.toLowerCase() },
+      });
     } else {
       user = await prisma.user.findFirst({
-        where: { username: emailOrUsername },
+        where: { username: emailOrUsername.toLowerCase() },
       });
     }
 
