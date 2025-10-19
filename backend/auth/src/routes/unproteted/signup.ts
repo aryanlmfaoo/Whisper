@@ -3,13 +3,20 @@ import prisma from "../../prisma";
 import { genSalt, hash } from "bcrypt";
 import jwt from "jsonwebtoken";
 import isEmail from "../../helpers/isEmail";
+import axios from "axios";
 
 const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET_KEY;
+const FOLLLOW_SERVICE_URL = process.env.FOLLOW_SERVICE_URL;
 
 if (!JWT_SECRET) {
   console.log("JWT Key not set");
+  process.exit(1);
+}
+
+if (!FOLLLOW_SERVICE_URL) {
+  console.log("Follow service URL not set");
   process.exit(1);
 }
 
@@ -59,7 +66,12 @@ router.post("/", async (req, res) => {
       },
     });
 
-    const token = jwt.sign({ user: user.id, username }, JWT_SECRET, {
+    await axios.post(`${FOLLLOW_SERVICE_URL}adduser`, {
+      id:user.id, email:email.toLowerCase(), username:username.toLowerCase()
+    })
+
+    const token = jwt.sign({ id: user.id, username: user.username },
+ JWT_SECRET, {
       expiresIn: "3hr",
     });
 
