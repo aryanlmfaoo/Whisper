@@ -18,22 +18,18 @@ router.put("/", async (req, res) => {
       where: { userId: userId, userToken: token },
     });
     if (!userTokenData)
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            "You never ever made a token request, please do that, or maybe its a db issue i'll see what i can do.",
-        });
-  } catch (e) {
-    console.error(e);
-    return res
-      .status(400)
-      .json({
+      return res.status(400).json({
         success: false,
         message:
           "You never ever made a token request, please do that, or maybe its a db issue i'll see what i can do.",
       });
+  } catch (e) {
+    console.error(e);
+    return res.status(400).json({
+      success: false,
+      message:
+        "You never ever made a token request, please do that, or maybe its a db issue i'll see what i can do.",
+    });
   }
 
   if (Number(userTokenData.createdAt) + 900000 > Date.now())
@@ -53,11 +49,9 @@ router.put("/", async (req, res) => {
     res.status(214).json({ success: true });
   } catch (e) {
     console.error(e);
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Internal Server Error. Probably with the db.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Internal Server Error. Probably with the db.",
+    });
   }
 });

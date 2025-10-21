@@ -67,13 +67,18 @@ router.post("/", async (req, res) => {
     });
 
     await axios.post(`${FOLLLOW_SERVICE_URL}adduser`, {
-      id:user.id, email:email.toLowerCase(), username:username.toLowerCase()
-    })
-
-    const token = jwt.sign({ id: user.id, username: user.username },
- JWT_SECRET, {
-      expiresIn: "3hr",
+      id: user.id,
+      email: email.toLowerCase(),
+      username: username.toLowerCase(),
     });
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      JWT_SECRET,
+      {
+        expiresIn: "1d",
+      },
+    );
 
     /// for other service to create a user instance if required.
     // const creatingInstances = Promise.all([])
