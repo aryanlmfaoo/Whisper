@@ -32,13 +32,15 @@ connect(MONGO_URI)
 
 connectToNeo();
 
-import createPost from "./routes/protected/createpost";
-import createComment from "./routes/protected/createcomment";
-import deletePost from "./routes/protected/deletepost";
+import post from "./routes/protected/post";
+import comment from "./routes/protected/comment";
+import postLike from "./routes/protected/likepost";
+import postDislike from "./routes/protected/dislikepost";
 
-app.use("/createpost", createPost);
-app.use("/createcomment", createComment);
-app.use("/deletepost", deletePost);
+app.use("/post", post);
+app.use("/comment", comment);
+app.use("/postlike", postLike);
+app.use("/postdislike", postDislike);
 
 app.get("/", (req, res) => {
   return res.status(200).json({ success: true });
