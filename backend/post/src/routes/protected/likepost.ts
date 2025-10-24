@@ -1,4 +1,3 @@
-// checked this after adding comment nodes
 import { Router } from "express";
 import VerifyToken from "../../helpers/verifytoken";
 import postSchema from "../../schema/post";
@@ -50,14 +49,16 @@ router.post("/", VerifyToken, async (req, res) => {
 
     postToEdit.likes++;
 
-    await postToEdit.save({ session });
-
     const likeQuery = await driver.executeQuery(
       `
             MATCH (a:User {userId: $id})
             MATCH (b:Post {postID : $postID})
-            CREATE (a)-[r:LIKES]->(b)
-            RETURN r
+            MERGE (a)-[l:LIKES]->(b)
+            WITH a,b,l
+            OPTIONAL MATCH (a)-[r:DISLIKES]->(b)
+            WITH a, b, r,l,  CASE WHEN r IS NULL THEN false ELSE true END AS hadDisliked
+            DELETE r
+            RETURN l , hadDisliked
     `,
       { id: id.trim(), postID: postID.trim() },
     );
@@ -72,6 +73,10 @@ router.post("/", VerifyToken, async (req, res) => {
         summary: likeQuery.summary,
       });
     }
+
+    if (likeQuery.records[0].get("hadDisliked")) postToEdit.dislikes--;
+
+    await postToEdit.save({ session });
 
     await session.commitTransaction();
 

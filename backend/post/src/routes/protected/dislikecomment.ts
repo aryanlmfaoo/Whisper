@@ -25,6 +25,27 @@ router.post("/", VerifyToken, async (req, res) => {
   session.startTransaction();
 
   try {
+    const { records } = await driver.executeQuery(
+      `
+      MATCH (a:User {userId : $id})
+      MATCH (c:Comment {commentID : $commentID})
+      OPTIONAL MATCH (a)-[l:DISLIKES]->(c)
+      RETURN COUNT(l) > 0 as alreadyDisliked
+      `,
+      { id, postID },
+    );
+
+    const record = records[0];
+    const alreadyDisliked = record.get("alreadyDisliked");
+
+    console.log(alreadyDisliked);
+
+    if (alreadyDisliked) {
+      await session.abortTransaction();
+      return res
+        .status(400)
+        .json({ success: false, message: "User already disliked this post" });
+    }
     const commentToEdit = await commentSchema.findOne({
       _id: new Types.ObjectId(postID),
     });
@@ -38,13 +59,15 @@ router.post("/", VerifyToken, async (req, res) => {
 
     commentToEdit.dislikes++;
 
-    await commentToEdit.save({ session });
-
     const likeQuery = await driver.executeQuery(
       `
-            MATCH (c:Comment {commentID: $commentID})-[:ON]->(p:Post {post: $postID})
-            CREATE (a:User {userId: $id})-[l:DISLIKES]->(c)
-            RETURN l
+      MATCH (a:User {userId: $id})
+      MATCH (c:Comment {commentID: $commentID})-[:ON]->(p:Post {postID: $postID})
+      MERGE (a)-[l:DISLIKES]->(c)
+      OPTIONAL MATCH (a)-[r:LIKES]->(c)
+      WITH l, r, CASE WHEN r IS NULL THEN false ELSE true END AS hadLiked
+      DELETE r
+      RETURN l, hadLiked;
     `,
       { id: id.trim(), commentID: commentID.trim(), postID: postID.trim() },
     );
@@ -56,6 +79,10 @@ router.post("/", VerifyToken, async (req, res) => {
         message: "Couldnt dislike post",
       });
     }
+
+    if (likeQuery.records[0].get("hadLiked")) commentToEdit.likes--;
+
+    await commentToEdit.save({ session });
 
     await session.commitTransaction();
 

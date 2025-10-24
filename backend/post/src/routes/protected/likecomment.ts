@@ -1,4 +1,3 @@
-// yeah this is good
 import { Router } from "express";
 import VerifyToken from "../../helpers/verifytoken";
 import commentSchema from "../../schema/comments";
@@ -26,8 +25,26 @@ router.post("/", VerifyToken, async (req, res) => {
   session.startTransaction();
 
   try {
+    const { records } = await driver.executeQuery(
+      `
+      MATCH (a:User {userId : $id})
+      MATCH (c:Comment {commentID : $commentID})-[:ON]->(p:Post {postID : $postID})
+      OPTIONAL MATCH (a)-[l:LIKES]->(c)
+      RETURN COUNT(l) > 0 as alreadyLiked
+      `,
+      { id, postID, commentID },
+    );
+
+    if (records[0].get("alreadyLiked")) {
+      return res
+        .status(400)
+        .json({ success: false, message: "User already likes this comment." });
+    }
+
     const commentToEdit = await commentSchema.findOne({
-      _id: new Types.ObjectId(postID),
+      _id: new Types.ObjectId(commentID),
+      postId: postID,
+      authorId: id,
     });
 
     if (!commentToEdit) {
@@ -39,16 +56,27 @@ router.post("/", VerifyToken, async (req, res) => {
 
     commentToEdit.likes++;
 
-    await commentToEdit.save({ session });
-
     const likeQuery = await driver.executeQuery(
-      `
-            MATCH (c:Comment {commentID: $commentID})-[:ON]->(p:Post {post: $postID})
-            CREATE (a:User {userId: $id})-[l:LIKES]->(c)
-            RETURN l
-    `,
+      ` 
+      MATCH (a:User {userId: $id})
+      MATCH (c:Comment {commentID: $commentID})-[:ON]->(p:Post {postID: $postID})
+      MERGE (a)-[l:LIKES]->(c)
+      WITH a,c,l,p
+      OPTIONAL MATCH (a)-[r:DISLIKES]->(c)
+      WITH l, r, CASE WHEN r IS NULL THEN false ELSE true END AS hadDisliked
+      DELETE r
+      RETURN l, hadDisliked;
+      `,
       { id: id.trim(), commentID: commentID.trim(), postID: postID.trim() },
     );
+
+    const hadDisliked = likeQuery.records[0].get("hadDisliked");
+
+    if (hadDisliked) commentToEdit.dislikes--;
+
+    console.log(likeQuery);
+
+    await commentToEdit.save({ session });
 
     if (likeQuery.records.length === 0) {
       await session.abortTransaction();
@@ -62,7 +90,7 @@ router.post("/", VerifyToken, async (req, res) => {
 
     return res
       .status(201)
-      .json({ success: true, message: "Post liked successfully" });
+      .json({ success: true, message: "Post liked successfully", likeQuery });
   } catch (error) {
     await session.abortTransaction();
     console.error("Error in liking post:", error);
@@ -93,15 +121,32 @@ router.delete("/", VerifyToken, async (req, res) => {
   session.startTransaction();
 
   try {
+    const { records } = await driver.executeQuery(
+      `
+      MATCH (a:User {userId : $id})
+      MATCH (c:Comment {commentID : $commentID})
+      OPTIONAL MATCH (a)-[l:LIKES]->(c)
+      RETURN COUNT(l) > 0 as alreadyLiked
+      `,
+      { id, postID, commentID },
+    );
+
+    if (!records[0].get("alreadyLiked")) {
+      return res
+        .status(400)
+        .json({ success: false, message: "User does not like this comment." });
+    }
+
     const commentToEdit = await commentSchema.findOne({
-      _id: new Types.ObjectId(postID),
+      _id: new Types.ObjectId(commentID),
+      postId: postID,
     });
 
     if (!commentToEdit) {
       await session.abortTransaction();
       return res
         .status(404)
-        .json({ success: false, message: "Couldn't find post" });
+        .json({ success: false, message: "Couldn't find comment" });
     }
 
     commentToEdit.likes--;
@@ -129,7 +174,7 @@ router.delete("/", VerifyToken, async (req, res) => {
 
     return res
       .status(201)
-      .json({ success: true, message: "Comment liked successfully." });
+      .json({ success: true, message: "Dislike removed successfully." });
   } catch (error) {
     await session.abortTransaction();
     console.error("Error in liking post:", error);

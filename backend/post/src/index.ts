@@ -36,11 +36,15 @@ import post from "./routes/protected/post";
 import comment from "./routes/protected/comment";
 import postLike from "./routes/protected/likepost";
 import postDislike from "./routes/protected/dislikepost";
+import commentLike from "./routes/protected/likecomment";
+import commentDislike from "./routes/protected/dislikecomment";
 
 app.use("/post", post);
 app.use("/comment", comment);
 app.use("/postlike", postLike);
 app.use("/postdislike", postDislike);
+app.use("/commentlike", commentLike);
+app.use("/commentdislike", commentDislike);
 
 app.get("/", (req, res) => {
   return res.status(200).json({ success: true });

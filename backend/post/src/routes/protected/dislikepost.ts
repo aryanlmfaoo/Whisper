@@ -1,4 +1,4 @@
-// this should be same as before, nun to do with comments
+// yea this is good
 import { Router } from "express";
 import VerifyToken from "../../helpers/verifytoken";
 import postSchema from "../../schema/post";
@@ -22,7 +22,7 @@ router.post("/", VerifyToken, async (req, res) => {
     const { records } = await driver.executeQuery(
       `
       MATCH (a:User {userId : $id})
-      MATCH (p:Post {postTD : $postID})
+      MATCH (p:Post {postID : $postID})
       OPTIONAL MATCH (a)-[l:DISLIKES]->(p)
       RETURN COUNT(l) > 0 as alreadyDisliked
       `,
@@ -54,23 +54,29 @@ router.post("/", VerifyToken, async (req, res) => {
 
     postToEdit.dislikes++;
 
-    await postToEdit.save({ session });
-
     const likeQuery = await driver.executeQuery(
       `
-            MATCH (a:User {userId: $id})
-            MATCH (b:Post {postID : $postID})
-            CREATE (a)-[r:DISLIKES]->(b)
-            RETURN r
-    `,
+      MATCH (a:User {userId: $id})
+      MATCH (b:Post {postID : $postID})
+      MERGE (a)-[r:DISLIKES]->(b)
+      WITH a,b,r
+      OPTIONAL MATCH (a)-[l:LIKES]->(b)
+      WITH l, r, CASE WHEN l IS NULL THEN false ELSE true END AS hadLiked
+      DELETE l
+      RETURN r, hadLiked
+      `,
       { id: id.trim(), postID: postID.trim() },
     );
+
+    if (likeQuery.records[0].get("hadLiked")) postToEdit.likes--;
+
+    await postToEdit.save({ session });
 
     if (likeQuery.records.length === 0) {
       await session.abortTransaction();
       return res.status(500).json({
         success: false,
-        message: "Couldnt like post",
+        message: "Couldnt dislike post",
       });
     }
 
@@ -78,7 +84,7 @@ router.post("/", VerifyToken, async (req, res) => {
 
     return res
       .status(200)
-      .json({ success: true, message: "Post liked successfully" });
+      .json({ success: true, message: "Post disliked successfully" });
   } catch (error) {
     await session.abortTransaction();
     console.error("Error in disliking post:", error);
@@ -108,16 +114,15 @@ router.delete("/", VerifyToken, async (req, res) => {
       { id, postID },
     );
 
-    const record = records[0];
-    const alreadyDisliked = record.get("alreadyDisliked");
+    const alreadyDisliked = records[0].get("alreadyDisliked");
 
     console.log(alreadyDisliked);
 
-    if (!alreadyDisliked) {
+    if (alreadyDisliked) {
       await session.abortTransaction();
       return res
         .status(400)
-        .json({ success: false, message: "User does not like this post" });
+        .json({ success: false, message: "User does not dislike this post" });
     }
 
     const postToEdit = await postSchema.findOne({
@@ -137,8 +142,8 @@ router.delete("/", VerifyToken, async (req, res) => {
 
     const likeQuery = await driver.executeQuery(
       `
-            MATCH (a:User {userId: $id})-[r:LIKES]->(b:Post {postID : $postID})
-            DELETE r 
+            MATCH (a:User {userId: $id})-[r:DISLIKES]->(b:Post {postID : $postID})
+            DELETE r
             RETURN r
     `,
       { id: id.trim(), postID: postID.trim() },

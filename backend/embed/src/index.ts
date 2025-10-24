@@ -3,7 +3,7 @@
 import { schedule } from "node-cron";
 import express from "express";
 import { config } from "dotenv";
-import { connect } from "mongoose";
+import { connect, startSession } from "mongoose";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { Schema, model } from "mongoose";
 
@@ -11,7 +11,7 @@ import { Schema, model } from "mongoose";
 config();
 
 // Batch of stuff we're getting
-const BATCH_SIZE_LIMIT = 100;
+const BATCH_SIZE_LIMIT = 1000;
 
 // env imports
 const PORT = process.env.PORT;
@@ -69,48 +69,66 @@ const dataSchema = new Schema({
 
 const embedSchema = model("embed", dataSchema);
 
-// the cron job
+// deleting posts from pinecone job
 schedule("0 */3 * * *", async () => {
-  const data = await embedSchema.find().limit(BATCH_SIZE_LIMIT);
+  const data = await embedSchema
+    .find({ operation: "delete" })
+    .limit(BATCH_SIZE_LIMIT);
   if (!data.length) {
     console.error("Couldnt fetch data from mongo.");
     return;
   }
 
-  for (const src of data) {
-    console.log(`Trying to work on postID: ${src.postID}`);
-    if (src.operation === "save") {
-      // if its a save operation, save it in pinecone and delete the db entry
-      console.log(`${src.postID} is a save operation.`);
-      if (!src.body) continue;
-      try {
-        await pinecone.upsertRecords([
-          {
-            _id: src.postID,
-            text: src.body,
-            category: "Post",
-          },
-        ]);
-        console.log(`Saved ${src.postID} in pinecone`);
-        await embedSchema.deleteOne({ postID: src.postID });
-        console.log(`Deleted ${src.postID} from mongo.`);
-      } catch (error) {
-        console.error(error);
-        continue;
-      }
-    } else if (src.operation === "delete") {
-      console.log(`${src.postID} is a delete operation.`);
-      try {
-        //
-        await pinecone.deleteOne(src.postID);
-        console.log(`Deleted ${src.postID} from pinecone`);
-        await embedSchema.deleteOne({ postID: src.postID });
-        console.log(`Deleted ${src.postID} from mongo.`);
-      } catch (error) {
-        console.error(error);
-        continue;
-      }
+  const session = await startSession();
+
+  try {
+    session.startTransaction();
+    const idsToDelete = [];
+
+    for (const src of data) {
+      idsToDelete.push(src.postID);
+      await embedSchema.deleteOne({ postID: src.postID }, { session });
     }
+
+    await pinecone.deleteMany(idsToDelete);
+  } catch (e) {
+    console.error(e);
+    session.abortTransaction();
+  } finally {
+    session.endSession();
+  }
+});
+
+// save posts cron job
+schedule("* * * * *", async () => {
+  const data = await embedSchema
+    .find({ operation: "save" })
+    .limit(BATCH_SIZE_LIMIT);
+  if (!data.length) {
+    console.error("Couldnt fetch data from mongo.");
+    return;
+  }
+
+  const session = await startSession();
+  try {
+    session.startTransaction();
+    const arrayToUpsert = [];
+    for (const src of data) {
+      if (!src.body) continue;
+      arrayToUpsert.push({
+        _id: src.postID,
+        text: src.body,
+        category: "Post",
+      });
+      await embedSchema.deleteOne({ src }, { session });
+    }
+    await pinecone.upsertRecords(arrayToUpsert);
+    await session.commitTransaction();
+  } catch (e) {
+    console.error(e);
+    await session.abortTransaction();
+  } finally {
+    session.endSession();
   }
 });
 

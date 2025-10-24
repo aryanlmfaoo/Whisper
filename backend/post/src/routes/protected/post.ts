@@ -81,22 +81,18 @@ router.delete("/", VerifyToken, async (req, res) => {
   try {
     session.startTransaction();
 
-    const postDeletion = await postSchema.deleteOne(
-      [
-        {
-          _id: new Types.ObjectId(postID.trim()),
-          authorId: id.trim(),
-        },
-      ],
-      session,
+    const postDeletion = await postSchema.deleteMany(
+      {
+        _id: new Types.ObjectId(postID.trim()),
+        authorId: id.trim(),
+      },
+      { session },
     );
 
     const commentDeletion = await commentSchema.deleteMany(
-      [
-        {
-          postId: postID.trim(),
-        },
-      ],
+      {
+        postId: postID.trim(),
+      },
       { session },
     );
 
@@ -121,7 +117,7 @@ router.delete("/", VerifyToken, async (req, res) => {
     const { records, summary } = await driver.executeQuery(
       `
       MATCH (p:Post {postID : $postID})
-      OPTIONAL MATCH (u:User)-[:COMMENTED]->(c:Comment)-[:ON]->(p)
+      OPTIONAL MATCH (c:Comment)-[:ON]->(p)
       DETACH DELETE p, c
         `,
       { postID: postID.trim() },

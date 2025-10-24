@@ -1,4 +1,3 @@
-// did check this after adding comment node
 import { Router } from "express";
 import VerifyToken from "../../helpers/verifytoken";
 import commentSchema from "../../schema/comments";
@@ -93,7 +92,7 @@ router.delete("/", VerifyToken, async (req, res) => {
 
   try {
     const post = await postSchema.findOne({
-      id: new Types.ObjectId(postID.trim()),
+      _id: new Types.ObjectId(postID.trim()),
     });
 
     if (!post) {
