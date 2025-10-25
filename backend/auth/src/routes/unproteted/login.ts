@@ -51,7 +51,7 @@ router.post("/", async (req, res) => {
         JWT_SECRET,
         { expiresIn: "3hr" },
       );
-      return res.status(200).json({ success: true, token });
+      return res.status(200).json({ success: true, token :token});
     }
   } catch (error) {
     console.error(error);

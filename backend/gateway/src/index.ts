@@ -1,25 +1,34 @@
 import express from "express";
 import axios from "axios";
 import { config } from "dotenv";
+import cors from "cors";
 
 config();
 
 const PORT = process.env.PORT;
 const AUTH_URL = process.env.AUTH_URL;
 const FOLLOW_URL = process.env.FOLLOW_URL;
-const POST_URL = process.env.POST_URL;
+const
+    POST_URL = process.env.POST_URL;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
-if (!PORT || !AUTH_URL || !FOLLOW_URL || !POST_URL) {
+if (!PORT || !AUTH_URL || !FOLLOW_URL || !POST_URL || !FRONTEND_URL ) {
   console.log(`Env in incomplete.`);
   console.log(`PORT is ${PORT}`);
   console.log(`AUTH URL is ${AUTH_URL}`);
   console.log(`FOLLOW URL is ${FOLLOW_URL}`);
   console.log(`POST URL is ${POST_URL}`);
+  console.log(`FRONTEND URL is ${FRONTEND_URL}`);
   process.exit(1);
 }
 
 const app = express();
-app.post("/", async (req, res) => {
+
+app.use(cors());
+app.use(express.json());
+
+app.post("/",  async (req, res) => {
+    console.log(req.body);
   let serviceUrl;
   const { service, method, body, path, query, headers } = req.body;
 
@@ -50,7 +59,7 @@ app.post("/", async (req, res) => {
         serviceUrl + path + (query || ""),
         headers ? { headers: JSON.parse(headers) } : undefined,
       );
-      return res.status(200).json({ success: true, result: result.data });
+      return res.status(result.status).json({ ...result.data });
     } catch (e) {
       console.error(e);
       return res.status(502).json({ success: false, message: "Bad Gateway." });
@@ -60,10 +69,11 @@ app.post("/", async (req, res) => {
       const result = await axios({
         method,
         url: serviceUrl + path + (query || ""),
-        data: body ? JSON.parse(body) : undefined,
+        data: body ? body : undefined,
         headers: headers ? JSON.parse(headers) : undefined,
       });
-      return res.status(200).json({ success: true, result: result.data });
+
+      return res.status(result.status).json({...result.data});
     } catch (e) {
       console.error(e);
       return res.status(502).json({ success: false, message: "Bad Gateway." });
