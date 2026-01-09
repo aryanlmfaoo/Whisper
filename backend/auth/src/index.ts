@@ -12,14 +12,20 @@ if (!PORT) {
   process.exit(1);
 }
 
-import signup from "./routes/unproteted/signup";
-import login from "./routes/unproteted/login";
+import signup from "./routes/unprotected/signup";
+import login from "./routes/unprotected/login";
+import forgotpasswordreq from "./routes/unprotected/forgotpasswordreq";
+import forgotpassword from "./routes/unprotected/forgotpassword";
+import deleteaccount from "./routes/protected/deleteaccountreq";
 
 app.use(express.json());
 
 app.use("/signup", signup);
 app.use("/login", login);
+app.use("/forgotpasswordreq", forgotpasswordreq);
+app.use("/forgotpassword", forgotpassword);
+app.use("/deleteaccount", deleteaccount)
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Connected to port ${PORT}`);
 });

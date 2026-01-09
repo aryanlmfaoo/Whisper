@@ -47,7 +47,7 @@ router.post("/", VerifyToken, async (req, res) => {
     );
 
     try {
-      await driver.executeQuery(` CREATE (a:Post {postID: $id}) RETURN a`, {
+      await driver.executeQuery(`CREATE (a:Post {postID: $id}) RETURN a`, {
         id: String(_id),
       });
     } catch (neoErr) {

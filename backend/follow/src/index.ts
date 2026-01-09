@@ -18,6 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 
 connectToNeo().catch((error) => {
   console.log(error);
+  process.exit(1);
 });
 
 import adduser from "./routes/unprotected/adduser";
