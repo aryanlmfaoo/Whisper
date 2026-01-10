@@ -6,6 +6,7 @@ import { config } from "dotenv";
 import { connect, startSession } from "mongoose";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { Schema, model } from "mongoose";
+import client from "./redis";
 
 // remove in prod only for dev
 config();
@@ -178,37 +179,37 @@ app.post("/like", async (req, res) => {
     const { postid, userid } = req.body;
     console.log("postID :" + postid);
     console.log("userID :" + userid);
-    let post = await pinecone.fetch([postid]);
-    let user = await pinecone.fetch([userid]);
-    const postVector = post.records[postid].values;
-    const userVector = user.records[userid].values;
+    let data = await pinecone.fetch([postid, userid]);
+    // let user = await pinecone.fetch([userid]);
+    const postVector = data.records[postid].values;
+    const userVector = data.records[userid].values;
     console.log("postv :" + postVector);
     console.log("userv :" + userVector);
 
     // return res.status(200).json({ post: postVector, user: userVector });
     if (
-      !user.records[userid].metadata ||
-      typeof user.records[userid].metadata.postsLiked !== "number" ||
+      !data.records[userid].metadata ||
+      typeof data.records[userid].metadata.postsLiked !== "number" ||
       !postVector ||
       !userVector
     ) {
-      console.log(user.records[userid].metadata);
+      console.log(data.records[userid].metadata);
 
       return res.status(500).json({ success: false });
     }
 
-    user.records[userid].metadata.postsLiked++;
-    console.log(user.records[userid].metadata.postsLiked);
+    data.records[userid].metadata.postsLiked++;
+    console.log(data.records[userid].metadata.postsLiked);
 
-    let learningRate = 0.1;
+    let learningRate;
 
-    if (user.records[userid].metadata.postsLiked <= 10) {
+    if (data.records[userid].metadata.postsLiked <= 10) {
       learningRate = 0.1;
-    } else if (user.records[userid].metadata.postsLiked <= 50) {
+    } else if (data.records[userid].metadata.postsLiked <= 50) {
       learningRate = 0.05;
-    } else if (user.records[userid].metadata.postsLiked <= 200) {
+    } else if (data.records[userid].metadata.postsLiked <= 200) {
       learningRate = 0.02;
-    } else if (user.records[userid].metadata.postsLiked <= 1000) {
+    } else if (data.records[userid].metadata.postsLiked <= 1000) {
       learningRate = 0.01;
     } else {
       learningRate = 0.001;
@@ -227,7 +228,7 @@ app.post("/like", async (req, res) => {
     }
     console.timeEnd("ok");
 
-    user.records[userid].values = userVector;
+    data.records[userid].values = userVector;
 
     try {
       await pinecone.update({
@@ -238,9 +239,9 @@ app.post("/like", async (req, res) => {
       console.log("George Harrison lowk goated icl " + e);
     }
 
-    console.log(post);
-    console.log(user);
-    return res.json({ post, user });
+    // console.log(post);
+    // console.log(user);
+    return res.json({ data });
   } catch (e) {
     if (e instanceof Error) {
       console.error(e.message);
@@ -255,37 +256,37 @@ app.delete("/like", async (req, res) => {
     const { postid, userid } = req.body;
     console.log("postID :" + postid);
     console.log("userID :" + userid);
-    let post = await pinecone.fetch([postid]);
-    let user = await pinecone.fetch([userid]);
-    const postVector = post.records[postid].values;
-    const userVector = user.records[userid].values;
+    let data = await pinecone.fetch([postid, userid]);
+    // let user = await pinecone.fetch([userid]);
+    const postVector = data.records[postid].values;
+    const userVector = data.records[userid].values;
     console.log("postv :" + postVector);
     console.log("userv :" + userVector);
 
     // return res.status(200).json({ post: postVector, user: userVector });
     if (
-      !user.records[userid].metadata ||
-      typeof user.records[userid].metadata.postsLiked !== "number" ||
+      !data.records[userid].metadata ||
+      typeof data.records[userid].metadata.postsLiked !== "number" ||
       !postVector ||
       !userVector
     ) {
-      console.log(user.records[userid].metadata);
+      console.log(data.records[userid].metadata);
 
       return res.status(500).json({ success: false });
     }
 
-    user.records[userid].metadata.postsLiked++;
-    console.log(user.records[userid].metadata.postsLiked);
+    data.records[userid].metadata.postsLiked++;
+    console.log(data.records[userid].metadata.postsLiked);
 
-    let learningRate = 0.1;
+    let learningRate;
 
-    if (user.records[userid].metadata.postsLiked <= 10) {
+    if (data.records[userid].metadata.postsLiked <= 10) {
       learningRate = 0.1;
-    } else if (user.records[userid].metadata.postsLiked <= 50) {
+    } else if (data.records[userid].metadata.postsLiked <= 50) {
       learningRate = 0.05;
-    } else if (user.records[userid].metadata.postsLiked <= 200) {
+    } else if (data.records[userid].metadata.postsLiked <= 200) {
       learningRate = 0.02;
-    } else if (user.records[userid].metadata.postsLiked <= 1000) {
+    } else if (data.records[userid].metadata.postsLiked <= 1000) {
       learningRate = 0.01;
     } else {
       learningRate = 0.001;
@@ -304,7 +305,7 @@ app.delete("/like", async (req, res) => {
     }
     console.timeEnd("ok");
 
-    user.records[userid].values = userVector;
+    data.records[userid].values = userVector;
 
     try {
       await pinecone.update({
@@ -315,15 +316,58 @@ app.delete("/like", async (req, res) => {
       console.log("George Harrison lowk goated icl " + e);
     }
 
-    console.log(post);
-    console.log(user);
-    return res.json({ post, user });
+    return res.json({ data });
   } catch (e) {
     if (e instanceof Error) {
       console.error(e.message);
       return res.json({ msg: e });
     }
   }
+});
+
+app.get("/feed", async (req, res) => {
+  const { id } = req.body;
+  const userData = await pinecone.fetch([id]);
+  const userVector = userData.records[id].values;
+  if (!userVector) {
+    return res.status(400).json({ message: "User does not exist." })
+  }
+
+  const redisData = await client.get(id);
+  if (redisData) {
+    const totalArray = JSON.parse(redisData);
+    if (totalArray.length <= 20) {
+      await client.del(id);
+      return res.status(200).json(totalArray);
+    } else {
+      let topTwentyItems = [];
+      for (let i = 0; i < 20; i++) {
+        topTwentyItems.push(totalArray[i]);
+        totalArray.shift();
+      }
+      await client.set(id, JSON.stringify(totalArray));
+      return res.status(200).json(topTwentyItems);
+    }
+  }
+
+  const similarPosts = await pinecone.query({
+    vector: userVector,
+    topK: 1000,
+    includeMetadata: true,
+    filter: {
+      category: { $eq: "Post" },
+    },
+  });
+
+  let cacheSave: String[] = [];
+  for (const src of similarPosts.matches) {
+    cacheSave.push(src.id);
+  }
+
+  client.set(id, JSON.stringify(cacheSave));
+  client.expire(id, 86400);
+
+  return res.status(200).json(cacheSave);
 });
 
 app.listen(PORT, () => {
